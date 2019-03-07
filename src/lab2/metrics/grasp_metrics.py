@@ -38,10 +38,10 @@ def compute_force_closure(vertices, normals, num_facets, mu, gamma, object_mass)
     # YOUR CODE HERE
     # check if vert2 in vert1 cone
     score = 0
-    p1 = vertices[0:3]
-    p2 = vertices[3:]
-    norm1 = normals[0:3]
-    norm2 = normals[3:]
+    p1 = vertices[0]
+    p2 = vertices[1]
+    norm1 = normals[0]
+    norm2 = normals[1]
     
     if is_in_cone(p1,p2,norm1,mu) and is_in_cone(p2,p1,norm2,mu):
         score = 1
@@ -63,8 +63,10 @@ def is_in_cone(p1,p2,norm1,mu):
     -------
     bool : whether p2 is in the friction cone of p1
     """
+    
     Gwa = look_at_general(p1,norm1)
-    pa = np.dot(Gwa,p2)
+    pt = np.array([p2[0],p2[1],p2[2],1])
+    pa = np.dot(Gwa,pt)
     if math.sqrt(pa[0]**2+pa[1]**2) <= mu*pa[2]:
         return True
     else:
@@ -175,8 +177,8 @@ def compute_gravity_resistance(vertices, normals, num_facets, mu, gamma, object_
     """
     # YOUR CODE HERE (contact forces exist may be useful here)
     score = 0
-    W = np.transpose(np.array([0 0 -9.81*object_mass 0 0 0]))
-    if contact_forces_exist(vertices, normals, num_facets, mu, gamma, W):
+    W = np.transpose(np.array([0, 0, -9.81*object_mass, 0, 0, 0]))
+    if contact_forces_exist(vertices, normals, num_facets, mu, gamma, -W):
         score = 1
     return score
 
@@ -205,4 +207,8 @@ def compute_custom_metric(vertices, normals, num_facets, mu, gamma, object_mass)
     float : quality of the grasp
     """
     # YOUR CODE HERE :)
+    """
+    Ferrari Canny
+    I have an ok idea of how to do this
+    """
     raise NotImplementedError
