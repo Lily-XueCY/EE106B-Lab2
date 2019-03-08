@@ -211,4 +211,29 @@ def compute_custom_metric(vertices, normals, num_facets, mu, gamma, object_mass)
     Ferrari Canny
     I have an ok idea of how to do this
     """
-    raise NotImplementedError
+    # might want to split the grasp map up into 2 halves
+    # first check if in FC
+    print("ENTERED CUSTOM")
+    if compute_force_closure(vertices, normals, num_facets, mu, gamma, object_mass) == 0:
+        return 0
+
+    G = get_grasp_map(vertices, normals, num_facets, mu, gamma)
+    fz = 1
+    f_1 = np.array([mu*fz,0,fz,0])
+    f_2 = np.array([0,mu*fz,fz,0])
+    f_3 = np.array([-mu*fz,0,fz,0])
+    f_4 = np.array([0,-mu*fz,fz,0])
+    fs = np.array([f_1,f_2,f_3,f_4])
+    w_max = []
+    for f1 in fs:
+        for f2 in fs:
+            f = np.hstack((f1,f2))
+            w = np.dot(G,f)
+            print(w)
+            w_max.append(np.linalg.norm(w))
+
+    print("Wmax: ", w_max)
+    w_min = min(w_max)
+    print("Wmin: ", w_min)
+
+    return w_min 
