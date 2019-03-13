@@ -134,20 +134,74 @@ def contact_forces_exist(vertices, normals, num_facets, mu, gamma, desired_wrenc
     bool : whether contact forces can produce the desired_wrench on the object
     """
     # YOUR CODE HERE
-    thresh = 1
-    G = get_grasp_map(vertices, normals, num_facets, mu, gamma)
-    f = cp.variable(8)
-    objective = cp.Minimize(cp.norm2(G*f-desired_wrench)) # sum_squares probably works fine
-    # Im unsure if absolute is allowed
-    contraint = [np.absolute(f[3])-gamma*f[2]<=0, np.absolute(f[7])-gamma*f[6]<=0, np.absolute(f[0])+np.absolute(f[1])-mu*f[2]<=0, np.absolute(f[4])+np.absolute(f[5])-mu*f[6]<=0, -f[2]<=0, -f[6]<=0]
-    prob = cp.Problem(objective, contraint)
-    # try catch would probably be useful
-    prob.solve()
-    if problem.status not in ["infeasible", "unbounded"]: # do I have to have some sort of threshold
-        result = prob.value
-        F = np.dot(G,result)
-        if np.linalg.norm(F,desired_wrench) <= thresh:
+    A = get_grasp_map(vertices, normals, num_facets, mu, gamma)
+    print("desired wrench: ", desired_wrench)
+    print("grasp map", A)
+    b = desired_wrench
+    bb = np.array([b]).T
+    print('bbshape',bb.shape)
+    thresh = 0.02*length(desired_wrench)
+    print("threshold", thresh)
+
+
+
+    x1 = cp.Variable()
+    x2 = cp.Variable()
+    x3 = cp.Variable()
+    x4 = cp.Variable()
+    x5 = cp.Variable()
+    x6 = cp.Variable()
+    x7 = cp.Variable()
+    x8 = cp.Variable()
+    
+    objective = cp.Minimize(cp.sum_squares(A[:,0]*x1 + A[:,1]*x2 + A[:,2]*x3 + A[:,3]*x4 + A[:,4]*x5 + A[:,5]*x6 + A[:,6]*x7 + A[:,7]*x8 - bb))
+    #constraints = [x[2]<=3, .1<=x[2], x[6]<=3, .1<=x[6]]
+    constraints1 = [x3>=0, x7>=0, x4-gamma*x3<=0, x8-gamma*x7<=0, x4+gamma*x3>=0, x8+gamma*x7>=0, x1+x2-mu*x3<=0, x5+x6-mu*x7<=0, x1>=0, x2>=0, x5>=0, x6>=0]
+    constraints2 = [x3>=0, x7>=0, x4-gamma*x3<=0, x8-gamma*x7<=0, x4+gamma*x3>=0, x8+gamma*x7>=0, x1-x2-mu*x3<=0, x5-x6-mu*x7<=0, x1>=0, x2<=0, x5>=0, x6<=0]
+    constraints3 = [x3>=0, x7>=0, x4-gamma*x3<=0, x8-gamma*x7<=0, x4+gamma*x3>=0, x8+gamma*x7>=0, -x1-x2-mu*x3<=0, -x5-x6-mu*x7<=0, x1<=0, x2<=0, x5<=0, x6<=0]
+    constraints4 = [x3>=0, x7>=0, x4-gamma*x3<=0, x8-gamma*x7<=0, x4+gamma*x3>=0, x8+gamma*x7>=0, -x1+x2-mu*x3<=0, -x5+x6-mu*x7<=0, x1<=0, x2>=0, x5<=0, x6>=0]
+
+    prob1 = cp.Problem(objective, constraints1)
+    prob2 = cp.Problem(objective, constraints2)
+    prob3 = cp.Problem(objective, constraints3)
+    prob4 = cp.Problem(objective, constraints4)
+
+    result = prob1.solve()
+    print(prob1.status)
+    print(prob1.status == 'optimal')
+    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+    print("akdasd: ", x_res)
+    if prob1.status == 'optimal':
+        error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
+        if error_res <= thresh:
             return True
+    result = prob2.solve()
+    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+    print("akdasd: ", x_res)
+    if prob2.status == 'optimal':
+        error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
+        if error_res <= thresh:
+            return True
+    result = prob3.solve()
+    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+    print("akdasd: ", x_res)
+    if prob3.status == 'optimal':
+        error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
+        if error_res <= thresh:
+            return True
+    result = prob4.solve()
+    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+    print("akdasd: ", x_res)
+    if prob4.status == 'optimal':
+        error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
+        if error_res <= thresh:
+            return True
+
+
+    # print(x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value)
+    # print('status: ', prob.status, error_res)
+    
+    
     return False
 
 def compute_gravity_resistance(vertices, normals, num_facets, mu, gamma, object_mass):
