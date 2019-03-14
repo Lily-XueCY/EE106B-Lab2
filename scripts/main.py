@@ -7,6 +7,7 @@ import numpy as np
 import scipy
 import sys
 import argparse
+import time
 
 # AutoLab imports
 from autolab_core import RigidTransform
@@ -14,6 +15,9 @@ import trimesh
 
 # 106B lab imports
 from lab2.policies import GraspingPolicy
+from geometry_msgs.msg import PoseStamped 
+from geometry_msgs.msg import Point 
+
 
 try:
     import rospy
@@ -24,6 +28,8 @@ try:
 except:
     print 'Couldn\'t import ROS.  I assume you\'re running this on your laptop'
     ros_enabled = False
+from lab2.utils import *
+from tf import transformations
 
 def lookup_transform(to_frame, from_frame='base'):
     """
@@ -48,13 +54,52 @@ def lookup_transform(to_frame, from_frame='base'):
     attempts, max_attempts, rate = 0, 10, rospy.Rate(1.0)
     while attempts < max_attempts:
         try:
+            # print("in try")
+            # print("1 here")
             t = listener.getLatestCommonTime(from_frame, to_frame)
+            # print("here")
             tag_pos, tag_rot = listener.lookupTransform(from_frame, to_frame, t)
+            real_rot = np.array([tag_rot[3], tag_rot[0], tag_rot[1], tag_rot[2]])
+
+
+            
+            # real_rot = np.array([tag_rot[1], tag_rot[2], tag_rot[3], tag_rot[0]])
+
+            
+            break
+
+
         except:
             rate.sleep()
             attempts += 1
-    rot = RigidTransform.rotation_from_quaternion(tag_rot)
+    # print("t",t)
+    # print("tag_pos", tag_pos)
+    # # print("tag_rot", tag_rot)
+    # print("real_rot", real_rot)
+
+    ### comment out when using ar tag
+
+    # tag_rot = [0, 0, 1, 0]
+    # tag_pos = [0.570, -0.184, -.243] #changed this so it would work for right gripper better
+    ### comment out when using ar tag
+    rot = RigidTransform.rotation_from_quaternion(real_rot)
+    # rot = tag_rot
+    # print(from_frame, to_frame)
     return RigidTransform(rot, tag_pos, to_frame=from_frame, from_frame=to_frame)
+
+
+def publish_grasp(grasp_object):
+
+    publisher, listener = tf.TransformBroadcaster(), tf.TransformListener()
+    publisher.sendTransform(
+    grasp_object.translation,
+    tf.transformations.quaternion_from_matrix(grasp_object.matrix),
+    listener.getLatestCommonTime("base", "base"),
+    'grasp',
+    'base',
+    )
+       
+
 
 def execute_grasp(T_grasp_world, planner, gripper):
     """
@@ -78,10 +123,135 @@ def execute_grasp(T_grasp_world, planner, gripper):
         gripper.open(block=True)
         rospy.sleep(1.0)
 
-    inp = raw_input('Press <Enter> to move, or \'exit\' to exit')
+    print("ENTERED EXECUTE!!!!!!!!!!!!!")
+
+
+    def construct_four_by_four(rotation_matrix, translation):
+        """
+        input:
+        rotation_matrix: 3x3 np.array
+        translation: 3x np.array
+
+        output:
+        4x4 np.array
+        """
+        print("translation ", translation)
+        print("rotation ", rotation)
+
+        three_by_four_matrix = np.concatenate((rotation, translation), axis=1)
+        four_by_four = np.concatenate((three_by_four_matrix, np.array([0,0,0,1]).reshape(1,4)), axis=0)
+        # four_by_four = np.concatenate((three_by_four_matrix, np.array([0,0,0,1])[:, None]), axis=1)
+        return four_by_four
+
+    def to_start_position(rotation_matrix , translation):
+        """
+        input:translation :3x1 np.array
+              rotation:    3x3 np.array 
+
+        Move back 10 centimeters from the object position to the start position
+        """
+        four_by_four = construct_four_by_four(rotation_matrix, translation)
+        b = np.array([[0],
+                  [0],
+                  [-0.10],
+                  [1]])
+        start_position = np.dot(four_by_four, b)
+        start_position = start_position[0:3]
+        print("start_position: ", start_position)
+        return start_position
+
+
+
+
+
+
+
+
+    #Uncomment the following two lines when the metrics is working
+    translation = T_grasp_world.translation.reshape(3,1)
+
+    print("tranlation in T_grasp_world: ", translation)
+
+    rotation =  T_grasp_world.rotation
+
+    print("rotation  in T_grasp_world: ", rotation)
+
+    #commented code block 1
+
+    #Move to start position
+    gripper.calibrate()
+    calibrated_translation = translation
+    calibrated_translation[1] = calibrated_translation[1]
+    calibrated_translation[2] = calibrated_translation[2]+.012 
+    start_position_translation = to_start_position(rotation, calibrated_translation)
+    pose0 = create_pose_from_rigid_transform(construct_four_by_four(rotation, start_position_translation))
+    plan0 = planner.plan_to_pose(pose0, list())
+    inp = raw_input('Press <Enter> to move to start position, or \'exit\' to exit')
+    open_gripper()
+    planner.execute_plan(plan0)
+    inp = raw_input('Motion plan worked? (y/n)')
+    if inp == 'n':
+        return
+    time.sleep(1)
+
+
+    #Move to object
+    pose1 = create_pose_from_rigid_transform(construct_four_by_four(rotation, calibrated_translation))
+    plan1 = planner.plan_to_pose(pose1, list())
+    inp = raw_input('Press <Enter> to move to object position, or \'exit\' to exit')
+    try: 
+        planner.execute_plan(plan1)
+    except:
+        planner.execute_plan(plan1)
+
+    inp = raw_input('Press <Enter> to close the gripper, or \'exit\' to exit')
+    close_gripper()
+    time.sleep(1)
+
+    #Lift up object
+    lift_up = translation
+    lift_up[2] = translation[2] + 0.05
+    pose2 = create_pose_from_rigid_transform(construct_four_by_four(rotation, lift_up))
+    plan2 = planner.plan_to_pose(pose2, list())
+    inp = raw_input('Press <Enter> to move to mid air position, or \'exit\' to exit')
     if inp == "exit":
         return
-    raise NotImplementedError
+
+    planner.execute_plan(plan2)
+    time.sleep(1)
+
+
+   #Pose 3 move to the destination in mid air 
+    intermediate2 = lift_up
+    intermediate2[1] =  intermediate2[1] - 0.1
+    pose = create_pose_from_rigid_transform(construct_four_by_four(rotation, intermediate2))
+    plan4 = planner.plan_to_pose(pose, list())
+    inp = raw_input('Press <Enter> to move to intermediate2 position, or \'exit\' to exit')
+    if inp == "exit":
+        return
+    planner.execute_plan(plan4)
+
+
+
+
+    #Pose 4 move to the destination
+    destination = intermediate2
+    destination[2] =  destination[2] - 0.05
+    pose = create_pose_from_rigid_transform(construct_four_by_four(rotation, destination))
+    plan5 = planner.plan_to_pose(pose, list())
+    inp = raw_input('Press <Enter> to move to destination position, or \'exit\' to exit')
+    if inp == "exit":
+        return
+
+    planner.execute_plan(plan5)
+    open_gripper()
+
+
+    """
+    Note that part of the lab is also to try picking the object up and moving it to a new position and releasing it, so eventually we'll need that (see lab doc)
+    """
+
+    # raise NotImplementedError
 
 def parse_args():
     """
@@ -122,8 +292,9 @@ def parse_args():
     return parser.parse_args()
 
 if __name__ == '__main__':
-    args = parse_args()
 
+    args = parse_args()
+    rospy.init_node('lab2')
     if args.debug:
         np.random.seed(0)
 
@@ -148,10 +319,13 @@ if __name__ == '__main__':
     # Execute each grasp on the baxter / sawyer
     if args.baxter:
         gripper = baxter_gripper.Gripper(args.arm)
-        planner = PathPlanner('{}_arm'.format(arm))
+        planner = PathPlanner('{}_arm'.format(args.arm))
+
 
         for T_grasp_world in T_grasp_worlds:
+            # publish_grasp(T_grasp_world)
             repeat = True
             while repeat:
                 execute_grasp(T_grasp_world, planner, gripper)
                 repeat = raw_input("repeat? [y|n] ") == 'y'
+

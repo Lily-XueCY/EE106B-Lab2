@@ -86,7 +86,9 @@ class PathPlanner(object):
         path: A moveit_msgs/RobotTrajectory path
         """
 
+        print "!!!!!!!IN PLAN_TO_POSE!!!!!!"
         self._group.set_pose_target(target)
+        print "!!!!!!!SECOND!!!!!!"
         self._group.set_start_state_to_current_state()
 
         if orientation_constraints is not None:

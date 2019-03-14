@@ -132,7 +132,7 @@ def adj(g):
     p = g[0:3,3]
     result = np.zeros((6, 6))
     result[0:3,0:3] = R
-    result[0:3,3:6] = hat(p) * R
+    result[3:6,0:3] = np.dot(hat(p),R)
     result[3:6,3:6] = R
     return result
 
@@ -201,7 +201,9 @@ def look_at_general(origin, direction):
     4x4 :obj:`numpy.ndarray`
     """
     up = vec(0,0,1)
+    #print("direction:", direction)
     z = normalize(direction)
+    #print("z",z)
     x = normalize(np.cross(up, z))
     y = np.cross(z, x) 
 
@@ -226,12 +228,27 @@ def create_pose_from_rigid_transform(g):
     """
     position = tfs.translation_from_matrix(g)
     quaternion = tfs.quaternion_from_matrix(g)
+    print("#############quaternion#################", quaternion)
+    print("##@@@@@@@@@@@     position   ############ ", position)
     wpose = Pose()
     wpose.position.x = position[0]
     wpose.position.y = position[1]
     wpose.position.z = position[2]
+
+    # wpose.position.x = 0.649
+    # wpose.position.y = 0.237
+    # wpose.position.z = 0.236
+
+
     wpose.orientation.x = quaternion[0]
     wpose.orientation.y = quaternion[1]
     wpose.orientation.z = quaternion[2]
     wpose.orientation.w = quaternion[3]
+
+
+    # wpose.orientation.x = 1
+    # wpose.orientation.y = 0
+    # wpose.orientation.z = 0
+    # wpose.orientation.w = 0
+
     return wpose

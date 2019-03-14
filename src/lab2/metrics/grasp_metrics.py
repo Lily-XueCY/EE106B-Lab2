@@ -5,7 +5,7 @@ Author: Chris Correa
 """
 # may need more imports
 import numpy as np
-from lab2.utils import vec, adj, look_at_general
+from lab2.utils import vec, adj, look_at_general, length
 import cvxpy as cp
 import math
 
@@ -40,11 +40,11 @@ def compute_force_closure(vertices, normals, num_facets, mu, gamma, object_mass)
     score = 0
     p1 = vertices[0]
     p2 = vertices[1]
-    norm1 = normals[0]
-    norm2 = normals[1]
+    norm1 = -normals[0]
+    norm2 = -normals[1]
     
     if is_in_cone(p1,p2,norm1,mu) and is_in_cone(p2,p1,norm2,mu):
-        score = 1
+        score = 1 
     return score
 
 def is_in_cone(p1,p2,norm1,mu):
@@ -64,7 +64,8 @@ def is_in_cone(p1,p2,norm1,mu):
     bool : whether p2 is in the friction cone of p1
     """
     
-    Gwa = look_at_general(p1,norm1)
+    Gaw = look_at_general(p1,norm1)
+    Gwa = np.linalg.inv(Gaw)
     pt = np.array([p2[0],p2[1],p2[2],1])
     pa = np.dot(Gwa,pt)
     if math.sqrt(pa[0]**2+pa[1]**2) <= mu*pa[2]:
@@ -133,7 +134,9 @@ def contact_forces_exist(vertices, normals, num_facets, mu, gamma, desired_wrenc
     -------
     bool : whether contact forces can produce the desired_wrench on the object
     """
-    # YOUR CODE HERE
+    #####################
+    vertices = vertices - np.array([[.586, -0.015, -0.164],[.586, -0.015, -0.164]])
+    #####################
     A = get_grasp_map(vertices, normals, num_facets, mu, gamma)
     print("desired wrench: ", desired_wrench)
     print("grasp map", A)
@@ -166,40 +169,63 @@ def contact_forces_exist(vertices, normals, num_facets, mu, gamma, desired_wrenc
     prob3 = cp.Problem(objective, constraints3)
     prob4 = cp.Problem(objective, constraints4)
 
-    result = prob1.solve()
-    print(prob1.status)
-    print(prob1.status == 'optimal')
-    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
-    print("akdasd: ", x_res)
-    if prob1.status == 'optimal':
+    trouble = False
+    try:
+        result = prob1.solve()
+        print(prob1.status)
+        print(prob1.status == 'optimal')
+        x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+        print("akdasd: ", x_res)
+    except:
+        print("bad solver!!!!!!!!")
+        trouble = True
+    
+    if trouble == False and prob1.status == 'optimal':
         error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
         if error_res <= thresh:
             return True
-    result = prob2.solve()
-    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
-    print("akdasd: ", x_res)
-    if prob2.status == 'optimal':
+    try:
+        result = prob2.solve()
+        print(prob2.status)
+        print(prob2.status == 'optimal')
+        x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+        print("akdasd: ", x_res)
+    except:
+        print("bad solver!!!!!!!!")
+        trouble = True
+    
+    if trouble == False and prob2.status == 'optimal':
         error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
         if error_res <= thresh:
             return True
-    result = prob3.solve()
-    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
-    print("akdasd: ", x_res)
-    if prob3.status == 'optimal':
+    try:
+        result = prob3.solve()
+        print(prob3.status)
+        print(prob3.status == 'optimal')
+        x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+        print("akdasd: ", x_res)
+    except:
+        print("bad solver!!!!!!!!")
+        trouble = True
+    
+    if trouble == False and prob3.status == 'optimal':
         error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
         if error_res <= thresh:
             return True
-    result = prob4.solve()
-    x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
-    print("akdasd: ", x_res)
-    if prob4.status == 'optimal':
+    try:
+        result = prob4.solve()
+        print(prob4.status)
+        print(prob4.status == 'optimal')
+        x_res = np.array([x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value])
+        print("akdasd: ", x_res)
+    except:
+        print("bad solver!!!!!!!!")
+        trouble = True
+    
+    if trouble == False and prob4.status == 'optimal':
         error_res = length(np.squeeze(np.asarray(np.dot(A,x_res) - b)))
         if error_res <= thresh:
             return True
-
-
-    # print(x1.value,x2.value,x3.value,x4.value,x5.value,x6.value,x7.value,x8.value)
-    # print('status: ', prob.status, error_res)
     
     
     return False
@@ -267,7 +293,7 @@ def compute_custom_metric(vertices, normals, num_facets, mu, gamma, object_mass)
     """
     # might want to split the grasp map up into 2 halves
     # first check if in FC
-    print("ENTERED CUSTOM")
+    # print("ENTERED CUSTOM")
     if compute_force_closure(vertices, normals, num_facets, mu, gamma, object_mass) == 0:
         return 0
 
